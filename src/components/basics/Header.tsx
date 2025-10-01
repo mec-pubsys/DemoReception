@@ -32,6 +32,12 @@ export const Header: React.FC<HeaderProps> = ({
     borderBottom: `1px solid ${colors.borderColor}`,
     boxShadow: `0 2px 4px ${colors.headerFooterShadowColor}`,
     minHeight: '60px',
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    zIndex: 1000,
   };
 
   const titleStyle: React.CSSProperties = {

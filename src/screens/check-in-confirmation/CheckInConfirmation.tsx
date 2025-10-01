@@ -27,6 +27,7 @@ export const CheckInConfirmation: React.FC = () => {
     backgroundColor: colors.bodyBackgroundColor,
     display: 'flex',
     flexDirection: 'column',
+    paddingTop: '75px', // Add padding to account for fixed header
   };
 
   const bodyStyle: React.CSSProperties = {
