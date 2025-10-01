@@ -18,17 +18,17 @@ const slides: SlideData[] = [
   {
     id: "1",
     text: "[自治体アプリ]を起動して、自己QRをタップ",
-    image: "/images/firstCarousel.png", // Placeholder image path
+    image: "", // Use emoji instead of image
   },
   {
     id: "2", 
     text: "受付する人を選んで、自己QRを表示するをタップ",
-    image: "/images/secondCarousel.png", // Placeholder image path
+    image: "", // Use emoji instead of image
   },
   {
     id: "3",
     text: "自己QRが表示されます。読み取りへ進んでください",
-    image: "/images/thirdCarousel.png", // Placeholder image path
+    image: "", // Use emoji instead of image
   },
 ];
 
