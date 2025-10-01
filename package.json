@@ -9,12 +9,20 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
-  "keywords": ["PWA", "React", "QR", "受付", "TypeScript"],
+  "keywords": [
+    "PWA",
+    "React",
+    "QR",
+    "受付",
+    "TypeScript"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/react-router-dom": "^5.3.3",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.3"
   },
   "devDependencies": {
     "@types/react": "^19.1.16",
