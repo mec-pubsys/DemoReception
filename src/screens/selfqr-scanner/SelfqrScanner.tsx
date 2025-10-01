@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '../../components/basics/Header';
 import { Button } from '../../components/basics/Button';
@@ -9,6 +9,7 @@ import { typography } from '../../styles/typography';
 import { mockQRScanResult } from '../../services/mockData';
 import { User } from '../../models/User';
 import { Event } from '../../models/Event';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 
 export const SelfqrScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,86 @@ export const SelfqrScanner: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [isScannerReady, setIsScannerReady] = useState(false);
+  
+  const qrCodeScannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  useEffect(() => {
+    // Request camera permission
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(() => {
+        setHasPermission(true);
+        setIsScannerReady(true);
+      })
+      .catch(() => {
+        setHasPermission(false);
+      });
+
+    return () => {
+      // Cleanup scanner on unmount
+      if (qrCodeScannerRef.current) {
+        qrCodeScannerRef.current.clear();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isScannerReady && isScanning) {
+      startScanner();
+    } else if (qrCodeScannerRef.current) {
+      qrCodeScannerRef.current.clear();
+      qrCodeScannerRef.current = null;
+    }
+  }, [isScannerReady, isScanning]);
+
+  const startScanner = () => {
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+      rememberLastUsedCamera: true,
+      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+    };
+
+    const qrCodeSuccessCallback = (decodedText: string) => {
+      console.log('QR Code detected:', decodedText);
+      setIsScanning(false);
+      setScanResult(decodedText);
+      setShowResultDialog(true);
+      
+      // Clean up scanner
+      if (qrCodeScannerRef.current) {
+        qrCodeScannerRef.current.clear();
+        qrCodeScannerRef.current = null;
+      }
+    };
+
+    const qrCodeErrorCallback = (error: string) => {
+      // Ignore errors during scanning - this is normal
+      console.debug('QR scanning error:', error);
+    };
+
+    try {
+      qrCodeScannerRef.current = new Html5QrcodeScanner(
+        "qr-reader",
+        config,
+        false
+      );
+      
+      qrCodeScannerRef.current.render(qrCodeSuccessCallback, qrCodeErrorCallback);
+    } catch (error) {
+      console.error('Error starting scanner:', error);
+      setIsScanning(false);
+    }
+  };
+
+  const stopScanner = () => {
+    setIsScanning(false);
+    if (qrCodeScannerRef.current) {
+      qrCodeScannerRef.current.clear();
+      qrCodeScannerRef.current = null;
+    }
+  };
 
   const containerStyle: React.CSSProperties = {
     minHeight: '100vh',
@@ -53,7 +134,6 @@ export const SelfqrScanner: React.FC = () => {
   const scanAreaStyle: React.CSSProperties = {
     width: '300px',
     height: '300px',
-    border: `3px solid ${colors.primary}`,
     borderRadius: '12px',
     position: 'relative',
     display: 'flex',
@@ -61,6 +141,7 @@ export const SelfqrScanner: React.FC = () => {
     justifyContent: 'center',
     backgroundColor: isScanning ? colors.blueLightColor : colors.greyContainerColor,
     transition: 'all 0.3s ease',
+    overflow: 'hidden',
   };
 
   const scanLineStyle: React.CSSProperties = {
@@ -94,6 +175,14 @@ export const SelfqrScanner: React.FC = () => {
       setScanResult(mockQRScanResult.lgapId);
       setShowResultDialog(true);
     }, 3000);
+  };
+
+  const startCameraScanning = () => {
+    if (hasPermission) {
+      setIsScanning(true);
+    } else {
+      alert('カメラへのアクセス許可が必要です。ブラウザの設定を確認してください。');
+    }
   };
 
   const handleScanSuccess = () => {
@@ -167,6 +256,42 @@ export const SelfqrScanner: React.FC = () => {
             50% { top: calc(100% - 3px); }
             100% { top: 0; }
           }
+          
+          /* html5-qrcode styling */
+          #qr-reader {
+            border: none !important;
+          }
+          
+          #qr-reader__camera_selection_container {
+            display: none !important;
+          }
+          
+          #qr-reader__header_message {
+            display: none !important;
+          }
+          
+          #qr-reader__camera_permission_button {
+            display: none !important;
+          }
+          
+          #qr-reader__dashboard_section {
+            display: none !important;
+          }
+          
+          #qr-reader__dashboard_section_csr {
+            display: none !important;
+          }
+          
+          #qr-reader video {
+            border-radius: 8px !important;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+          }
+          
+          #qr-reader__scan_region {
+            border: none !important;
+          }
         `}
       </style>
 
@@ -185,14 +310,20 @@ export const SelfqrScanner: React.FC = () => {
           </HiraginoKakuText>
           
           <div style={scanAreaStyle}>
-            {isScanning && <div style={scanLineStyle} />}
-            <div style={{
-              fontSize: '64px',
-              color: isScanning ? colors.primary : colors.greyTextColor,
-              transition: 'color 0.3s ease'
-            }}>
-              📱
-            </div>
+            {isScanning ? (
+              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+            ) : (
+              <>
+                {scanLineStyle && <div style={scanLineStyle} />}
+                <div style={{
+                  fontSize: '64px',
+                  color: colors.greyTextColor,
+                  transition: 'color 0.3s ease'
+                }}>
+                  📱
+                </div>
+              </>
+            )}
           </div>
           
           <div style={buttonContainerStyle}>
@@ -204,8 +335,14 @@ export const SelfqrScanner: React.FC = () => {
                   onPress={handleBackToDescription}
                 />
                 <Button
-                  text="デモスキャン"
+                  text="カメラでスキャン"
                   type="ButtonMPrimary"
+                  onPress={startCameraScanning}
+                  disabled={hasPermission === false}
+                />
+                <Button
+                  text="デモスキャン"
+                  type="ButtonMGray"
                   onPress={mockScanQR}
                 />
               </>
@@ -215,7 +352,7 @@ export const SelfqrScanner: React.FC = () => {
               <Button
                 text="スキャン中止"
                 type="ButtonMGray"
-                onPress={() => setIsScanning(false)}
+                onPress={stopScanner}
               />
             )}
           </div>
@@ -234,8 +371,11 @@ export const SelfqrScanner: React.FC = () => {
             textAlign: 'center',
             display: 'block'
           }}>
-            自治体アプリで表示された自己QRコードを<br />
-            スキャンエリア内にかざしてください<br />
+            {hasPermission === false 
+              ? '⚠️ カメラへのアクセス許可が必要です'
+              : '自治体アプリで表示された自己QRコードを\nスキャンエリア内にかざしてください'
+            }
+            <br />
             <br />
             <small>※ デモ版では「デモスキャン」ボタンでテストできます</small>
           </HiraginoKakuText>

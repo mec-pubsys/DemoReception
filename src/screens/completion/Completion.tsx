@@ -112,7 +112,7 @@ export const Completion: React.FC = () => {
   };
 
   const handleNewReception = () => {
-    navigate('/event-list', { state: { user } });
+    navigate('/select-reception-method', { state: { user, event } });
   };
 
   if (!user || !event || !receptionId) {
