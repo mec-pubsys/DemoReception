@@ -25,11 +25,13 @@ export const SelfqrScanner: React.FC = () => {
   const qrCodeScannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    // Request camera permission
+    // Request camera permission and auto-start scanning
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(() => {
         setHasPermission(true);
         setIsScannerReady(true);
+        // Auto-start scanning when screen loads
+        setIsScanning(true);
       })
       .catch(() => {
         setHasPermission(false);
@@ -175,14 +177,6 @@ export const SelfqrScanner: React.FC = () => {
       setScanResult(mockQRScanResult.lgapId);
       setShowResultDialog(true);
     }, 3000);
-  };
-
-  const startCameraScanning = () => {
-    if (hasPermission) {
-      setIsScanning(true);
-    } else {
-      alert('カメラへのアクセス許可が必要です。ブラウザの設定を確認してください。');
-    }
   };
 
   const handleScanSuccess = () => {
@@ -333,12 +327,6 @@ export const SelfqrScanner: React.FC = () => {
                   text="戻る"
                   type="ButtonMGray"
                   onPress={handleBackToDescription}
-                />
-                <Button
-                  text="カメラでスキャン"
-                  type="ButtonMPrimary"
-                  onPress={startCameraScanning}
-                  disabled={hasPermission === false}
                 />
                 <Button
                   text="デモスキャン"
