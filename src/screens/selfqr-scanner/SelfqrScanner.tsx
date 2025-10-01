@@ -17,6 +17,7 @@ export const SelfqrScanner: React.FC = () => {
   const { user, event } = location.state as { user: User; event: Event };
 
   const [isScanning, setIsScanning] = useState(false);
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -25,13 +26,13 @@ export const SelfqrScanner: React.FC = () => {
   const qrCodeScannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    // Request camera permission and auto-start scanning
+    // Request camera permission and start video preview
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(() => {
         setHasPermission(true);
         setIsScannerReady(true);
-        // Auto-start scanning when screen loads
-        setIsScanning(true);
+        // Show video preview immediately on screen load
+        setShowVideoPreview(true);
       })
       .catch(() => {
         setHasPermission(false);
@@ -46,13 +47,13 @@ export const SelfqrScanner: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isScannerReady && isScanning) {
+    if (isScannerReady && (isScanning || showVideoPreview)) {
       startScanner();
     } else if (qrCodeScannerRef.current) {
       qrCodeScannerRef.current.clear();
       qrCodeScannerRef.current = null;
     }
-  }, [isScannerReady, isScanning]);
+  }, [isScannerReady, isScanning, showVideoPreview]);
 
   const startScanner = () => {
     const config = {
@@ -63,15 +64,19 @@ export const SelfqrScanner: React.FC = () => {
     };
 
     const qrCodeSuccessCallback = (decodedText: string) => {
-      console.log('QR Code detected:', decodedText);
-      setIsScanning(false);
-      setScanResult(decodedText);
-      setShowResultDialog(true);
-      
-      // Clean up scanner
-      if (qrCodeScannerRef.current) {
-        qrCodeScannerRef.current.clear();
-        qrCodeScannerRef.current = null;
+      // Only process QR results when actively scanning, not just previewing
+      if (isScanning) {
+        console.log('QR Code detected:', decodedText);
+        setIsScanning(false);
+        setShowVideoPreview(false);
+        setScanResult(decodedText);
+        setShowResultDialog(true);
+        
+        // Clean up scanner
+        if (qrCodeScannerRef.current) {
+          qrCodeScannerRef.current.clear();
+          qrCodeScannerRef.current = null;
+        }
       }
     };
 
@@ -91,11 +96,13 @@ export const SelfqrScanner: React.FC = () => {
     } catch (error) {
       console.error('Error starting scanner:', error);
       setIsScanning(false);
+      setShowVideoPreview(false);
     }
   };
 
   const stopScanner = () => {
     setIsScanning(false);
+    setShowVideoPreview(false);
     if (qrCodeScannerRef.current) {
       qrCodeScannerRef.current.clear();
       qrCodeScannerRef.current = null;
@@ -141,7 +148,7 @@ export const SelfqrScanner: React.FC = () => {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: isScanning ? colors.blueLightColor : colors.greyContainerColor,
+    backgroundColor: (isScanning || showVideoPreview) ? colors.blueLightColor : colors.greyContainerColor,
     transition: 'all 0.3s ease',
     overflow: 'hidden',
   };
@@ -174,6 +181,7 @@ export const SelfqrScanner: React.FC = () => {
     // Simulate scanning delay
     setTimeout(() => {
       setIsScanning(false);
+      setShowVideoPreview(false);
       setScanResult(mockQRScanResult.lgapId);
       setShowResultDialog(true);
     }, 3000);
@@ -304,7 +312,7 @@ export const SelfqrScanner: React.FC = () => {
           </HiraginoKakuText>
           
           <div style={scanAreaStyle}>
-            {isScanning ? (
+            {(isScanning || showVideoPreview) ? (
               <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
             ) : (
               <>
@@ -381,10 +389,18 @@ export const SelfqrScanner: React.FC = () => {
         onSecondaryPress={() => {
           setShowResultDialog(false);
           setScanResult(null);
+          // Resume video preview after closing dialog
+          if (hasPermission) {
+            setShowVideoPreview(true);
+          }
         }}
         onClose={() => {
           setShowResultDialog(false);
           setScanResult(null);
+          // Resume video preview after closing dialog
+          if (hasPermission) {
+            setShowVideoPreview(true);
+          }
         }}
       />
     </div>
