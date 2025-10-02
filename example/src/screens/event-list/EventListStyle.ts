@@ -360,6 +360,7 @@ export const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.secondary,
     borderBottomWidth: 1,
     borderColor: colors.gray,
@@ -397,6 +398,7 @@ export const styles = StyleSheet.create({
       },
     }),
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.secondary,
     borderBottomWidth: 1,
     borderColor: colors.gray,
@@ -425,8 +427,10 @@ export const styles = StyleSheet.create({
   },
   cell: {
     color: colors.blackText,
-    padding: 12,
-    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
   onChangePageContainer: {
     height: 32,
