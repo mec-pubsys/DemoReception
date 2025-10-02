@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '../../components/basics/Header';
 import { Button } from '../../components/basics/Button';
@@ -9,21 +9,18 @@ import { typography } from '../../styles/typography';
 import { mockQRScanResult } from '../../services/mockData';
 import { User } from '../../models/User';
 import { Event } from '../../models/Event';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 export const SelfqrScanner: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, event } = location.state as { user: User; event: Event };
 
-  const [isScanning, setIsScanning] = useState(false);
-  const [showVideoPreview, setShowVideoPreview] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [isScannerReady, setIsScannerReady] = useState(false);
-  
-  const qrCodeScannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [scannerPaused, setScannerPaused] = useState(false);
+  const [isMockScanning, setIsMockScanning] = useState(false);
 
   useEffect(() => {
     // Check camera availability and permissions
@@ -44,146 +41,36 @@ export const SelfqrScanner: React.FC = () => {
           console.warn('No camera device found');
           setHasPermission(false);
         } else {
-          console.log('Camera device available, permission will be requested when scanner starts');
+          console.log('Camera device available, scanner will auto-start');
           setHasPermission(true);
         }
-        
-        setIsScannerReady(true);
-        // Start with video preview showing
-        setShowVideoPreview(true);
       } catch (error) {
         console.warn('Error checking camera availability:', error);
         setHasPermission(false);
-        setIsScannerReady(true);
       }
     };
 
     checkCameraAvailability();
-
-    return () => {
-      // Cleanup scanner on unmount
-      if (qrCodeScannerRef.current) {
-        try {
-          qrCodeScannerRef.current.clear();
-        } catch (error) {
-          console.warn('Error clearing scanner:', error);
-        }
-      }
-    };
   }, []);
 
-  useEffect(() => {
-    if (isScannerReady && (isScanning || showVideoPreview)) {
-      startScanner();
-    } else if (qrCodeScannerRef.current) {
-      try {
-        qrCodeScannerRef.current.clear();
-        qrCodeScannerRef.current = null;
-      } catch (error) {
-        console.warn('Error clearing scanner:', error);
-        qrCodeScannerRef.current = null;
-      }
-    }
-  }, [isScannerReady, isScanning, showVideoPreview]);
 
-  const startScanner = () => {
-    // Prevent multiple scanner instances
-    if (qrCodeScannerRef.current) {
-      console.log('Scanner already running');
-      return;
-    }
 
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      rememberLastUsedCamera: true,
-      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-      showTorchButtonIfSupported: true,
-      showZoomSliderIfSupported: true,
-    };
-
-    const qrCodeSuccessCallback = (decodedText: string) => {
-      // Only process QR results when actively scanning, not just previewing
-      if (isScanning) {
-        console.log('QR Code detected:', decodedText);
-        setIsScanning(false);
-        setShowVideoPreview(false);
-        setScanResult(decodedText);
-        setShowResultDialog(true);
-        
-        // Clean up scanner
-        if (qrCodeScannerRef.current) {
-          try {
-            qrCodeScannerRef.current.clear();
-            qrCodeScannerRef.current = null;
-          } catch (error) {
-            console.warn('Error clearing scanner after success:', error);
-            qrCodeScannerRef.current = null;
-          }
-        }
-      }
-    };
-
-    const qrCodeErrorCallback = (error: string) => {
-      // Ignore common scanning errors - they're normal during scanning
-      if (!error.includes('QR code parse error') && 
-          !error.includes('No MultiFormat Readers were able to detect the code') &&
-          !error.includes('NotFoundException')) {
-        console.debug('QR scanning error:', error);
-      }
-    };
-
-    try {
-      const qrReader = new Html5QrcodeScanner(
-        "qr-reader",
-        config,
-        false
-      );
-      
-      qrCodeScannerRef.current = qrReader;
-      
-      // Add a small delay to ensure DOM element is ready
-      setTimeout(() => {
-        if (qrCodeScannerRef.current) {
-          try {
-            qrCodeScannerRef.current.render(qrCodeSuccessCallback, qrCodeErrorCallback);
-          } catch (renderError) {
-            console.error('Error rendering scanner:', renderError);
-            // If render fails, it might be due to camera permissions
-            if (renderError instanceof Error && renderError.message && renderError.message.includes('Permission')) {
-              setHasPermission(false);
-            }
-            setIsScanning(false);
-            setShowVideoPreview(false);
-            qrCodeScannerRef.current = null;
-          }
-        }
-      }, 100);
-      
-    } catch (error) {
-      console.error('Error starting scanner:', error);
-      setIsScanning(false);
-      setShowVideoPreview(false);
-      qrCodeScannerRef.current = null;
-      
-      // Check if it's a permission error
-      if (error instanceof Error && error.message && error.message.includes('Permission')) {
-        setHasPermission(false);
-      }
+  // Handle QR scan success
+  const handleScan = (detectedCodes: any[]) => {
+    if (detectedCodes && detectedCodes.length > 0 && !scannerPaused) {
+      const qrCode = detectedCodes[0];
+      console.log('QR Code detected:', qrCode.rawValue);
+      setScanResult(qrCode.rawValue);
+      setShowResultDialog(true);
+      setScannerPaused(true); // Pause scanning while showing dialog
     }
   };
 
-  const stopScanner = () => {
-    setIsScanning(false);
-    setShowVideoPreview(false);
-    if (qrCodeScannerRef.current) {
-      try {
-        qrCodeScannerRef.current.clear();
-        qrCodeScannerRef.current = null;
-      } catch (error) {
-        console.warn('Error stopping scanner:', error);
-        qrCodeScannerRef.current = null;
-      }
+  // Handle scanner errors
+  const handleError = (error: unknown) => {
+    console.warn('QR Scanner error:', error);
+    if (error instanceof Error && error.message.includes('Permission')) {
+      setHasPermission(false);
     }
   };
 
@@ -224,12 +111,9 @@ export const SelfqrScanner: React.FC = () => {
     height: '300px',
     borderRadius: '12px',
     position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: (isScanning || showVideoPreview) ? colors.blueLightColor : colors.greyContainerColor,
-    transition: 'all 0.3s ease',
     overflow: 'hidden',
+    backgroundColor: hasPermission ? colors.blueLightColor : colors.greyContainerColor,
+    transition: 'all 0.3s ease',
   };
 
   const scanLineStyle: React.CSSProperties = {
@@ -237,7 +121,7 @@ export const SelfqrScanner: React.FC = () => {
     width: '100%',
     height: '3px',
     backgroundColor: colors.primary,
-    animation: isScanning ? 'scanAnimation 2s linear infinite' : 'none',
+    animation: isMockScanning ? 'scanAnimation 2s linear infinite' : 'none',
   };
 
   const instructionStyle: React.CSSProperties = {
@@ -255,12 +139,12 @@ export const SelfqrScanner: React.FC = () => {
   };
 
   const mockScanQR = () => {
-    setIsScanning(true);
+    setIsMockScanning(true);
+    setScannerPaused(true); // Pause the real scanner during mock scan
     
     // Simulate scanning delay
     setTimeout(() => {
-      setIsScanning(false);
-      setShowVideoPreview(false);
+      setIsMockScanning(false);
       setScanResult(mockQRScanResult.lgapId);
       setShowResultDialog(true);
     }, 3000);
@@ -338,41 +222,7 @@ export const SelfqrScanner: React.FC = () => {
             100% { top: 0; }
           }
           
-          /* html5-qrcode styling */
-          #qr-reader {
-            border: none !important;
-          }
-          
-          #qr-reader__camera_selection_container {
-            display: none !important;
-          }
-          
-          #qr-reader__header_message {
-            display: none !important;
-          }
-          
-          #qr-reader__camera_permission_button {
-            display: none !important;
-          }
-          
-          #qr-reader__dashboard_section {
-            display: none !important;
-          }
-          
-          #qr-reader__dashboard_section_csr {
-            display: none !important;
-          }
-          
-          #qr-reader video {
-            border-radius: 8px !important;
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-          }
-          
-          #qr-reader__scan_region {
-            border: none !important;
-          }
+
         `}
       </style>
 
@@ -387,26 +237,43 @@ export const SelfqrScanner: React.FC = () => {
         {/* Scanner Area */}
         <div style={scannerContainerStyle}>
           <HiraginoKakuText style={instructionStyle}>
-            {isScanning 
+            {isMockScanning 
               ? 'QRコードを読み取り中...' 
-              : showVideoPreview 
-                ? 'QRコードをスキャンエリアに合わせて「スキャン開始」をタップ'
-                : hasPermission 
-                  ? 'カメラを開始してQRコードをスキャンしてください'
-                  : 'カメラが利用できません'
+              : hasPermission 
+                ? 'QRコードをスキャンエリアにかざしてください'
+                : 'カメラが利用できません'
             }
           </HiraginoKakuText>
           
           <div style={scanAreaStyle}>
-            {(isScanning || showVideoPreview) ? (
-              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+            {hasPermission ? (
+              <Scanner
+                onScan={handleScan}
+                onError={handleError}
+                paused={scannerPaused}
+                styles={{
+                  container: { width: '100%', height: '100%' },
+                  video: { width: '100%', height: '100%', objectFit: 'cover' }
+                }}
+                formats={['qr_code']}
+                components={{
+                  finder: true,
+                  torch: true,
+                  zoom: false,
+                  onOff: false
+                }}
+              />
             ) : (
               <>
-                {scanLineStyle && <div style={scanLineStyle} />}
+                {isMockScanning && <div style={scanLineStyle} />}
                 <div style={{
                   fontSize: '64px',
                   color: colors.greyTextColor,
-                  transition: 'color 0.3s ease'
+                  transition: 'color 0.3s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%'
                 }}>
                   📱
                 </div>
@@ -415,71 +282,24 @@ export const SelfqrScanner: React.FC = () => {
           </div>
           
           <div style={buttonContainerStyle}>
-            {!isScanning && !showVideoPreview && (
-              <>
-                <Button
-                  text="戻る"
-                  type="ButtonMGray"
-                  onPress={handleBackToDescription}
-                />
-                <Button
-                  text="カメラを開始"
-                  type="ButtonMPrimary"
-                  onPress={() => {
-                    if (hasPermission) {
-                      setShowVideoPreview(true);
-                    } else {
-                      alert('カメラへのアクセス許可が必要です。ブラウザの設定を確認してください。');
-                    }
-                  }}
-                />
-                <Button
-                  text="デモスキャン"
-                  type="ButtonMGray"
-                  onPress={mockScanQR}
-                />
-              </>
+            <Button
+              text="戻る"
+              type="ButtonMGray"
+              onPress={handleBackToDescription}
+            />
+            {hasPermission && !isMockScanning && (
+              <Button
+                text={scannerPaused ? "スキャン再開" : "スキャン一時停止"}
+                type="ButtonMPrimary"
+                onPress={() => setScannerPaused(!scannerPaused)}
+              />
             )}
-            
-            {showVideoPreview && !isScanning && (
-              <>
-                <Button
-                  text="戻る"
-                  type="ButtonMGray"
-                  onPress={handleBackToDescription}
-                />
-                <Button
-                  text="スキャン開始"
-                  type="ButtonMPrimary"
-                  onPress={() => setIsScanning(true)}
-                />
-                <Button
-                  text="カメラ停止"
-                  type="ButtonMGray"
-                  onPress={stopScanner}
-                />
-                <Button
-                  text="デモスキャン"
-                  type="ButtonMGray"
-                  onPress={mockScanQR}
-                />
-              </>
-            )}
-            
-            {isScanning && (
-              <>
-                <Button
-                  text="スキャン中止"
-                  type="ButtonMGray"
-                  onPress={stopScanner}
-                />
-                <Button
-                  text="デモスキャン"
-                  type="ButtonMGray"
-                  onPress={mockScanQR}
-                />
-              </>
-            )}
+            <Button
+              text="デモスキャン"
+              type="ButtonMGray"
+              onPress={mockScanQR}
+              disabled={isMockScanning}
+            />
           </div>
         </div>
 
@@ -498,9 +318,7 @@ export const SelfqrScanner: React.FC = () => {
           }}>
             {hasPermission === false 
               ? '⚠️ カメラが利用できません。ブラウザの設定でカメラへのアクセスを許可してください'
-              : showVideoPreview
-                ? '自治体アプリで表示された自己QRコードを\nスキャンエリア内にかざして「スキャン開始」をタップしてください'
-                : '「カメラを開始」をタップしてカメラプレビューを表示してください'
+              : '自治体アプリで表示された自己QRコードを\nスキャンエリア内にかざしてください。\nQRコードが検出されると自動的に読み取ります。'
             }
             <br />
             <br />
@@ -520,18 +338,14 @@ export const SelfqrScanner: React.FC = () => {
         onSecondaryPress={() => {
           setShowResultDialog(false);
           setScanResult(null);
-          // Resume video preview after closing dialog
-          if (hasPermission) {
-            setShowVideoPreview(true);
-          }
+          // Resume scanning after closing dialog
+          setScannerPaused(false);
         }}
         onClose={() => {
           setShowResultDialog(false);
           setScanResult(null);
-          // Resume video preview after closing dialog
-          if (hasPermission) {
-            setShowVideoPreview(true);
-          }
+          // Resume scanning after closing dialog
+          setScannerPaused(false);
         }}
       />
     </div>
